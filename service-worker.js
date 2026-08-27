@@ -1,4 +1,4 @@
-const CACHE = 'interval-trainer-v8';
+const CACHE = 'interval-trainer-v9';
 const ASSETS = [
   './',
   './index.html',
