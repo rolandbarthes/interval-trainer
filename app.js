@@ -66,6 +66,7 @@ let pendingImport = null;
 let audioContext = null;
 let activeUtterance = null;
 let speechRetryTimer = null;
+let queueRenderKey = '';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -171,7 +172,7 @@ function renderTimer() {
   const plan = currentPlan(); const sequence = workoutSequence(plan); const interval = currentInterval();
   if (!plan || !interval) {
     els.timerHeading.textContent = plan ? 'Add an interval' : 'Create a workout plan'; els.timeDisplay.textContent = '00:00'; els.timerStatus.textContent = 'Ready';
-    els.intervalPosition.textContent = '0 of 0'; els.totalRemaining.textContent = 'Total 00:00'; els.nextInterval.textContent = 'Next: —'; els.timerQueue.innerHTML = '';
+    els.intervalPosition.textContent = '0 of 0'; els.totalRemaining.textContent = 'Total 00:00'; els.nextInterval.textContent = 'Next: —'; els.timerQueue.innerHTML = ''; queueRenderKey = '';
     els.queuePlanName.textContent = plan?.name || 'Intervals'; els.planRestTime.textContent = plan ? `Rest between exercises: ${plan.restDuration || 0} seconds` : 'Rest between exercises: —'; els.startPauseBtn.disabled = true; els.previousBtn.disabled = true; els.skipBtn.disabled = true; els.overallProgress.style.width = '0%'; return;
   }
   const elapsedBefore = sequence.slice(0, timer.index).reduce((sum, item) => sum + Number(item.duration), 0);
@@ -186,7 +187,11 @@ function renderTimer() {
   els.startPauseBtn.textContent = timer.finished ? 'Restart' : timer.running ? 'Pause' : timer.remainingMs < interval.duration * 1000 ? 'Resume' : 'Start';
   els.startPauseBtn.disabled = false; els.previousBtn.disabled = timer.index === 0 && timer.remainingMs === interval.duration * 1000; els.skipBtn.disabled = false;
   els.overallProgress.style.width = `${duration ? Math.min(100, ((elapsedBefore + elapsedCurrent) / duration) * 100) : 0}%`;
-  els.timerQueue.innerHTML = sequence.map((item, index) => `<li class="${index === timer.index ? 'active' : ''}"><button type="button" class="queue-jump" data-index="${index}"${index === timer.index ? ' aria-current="step"' : ''}><span class="queue-index">${index + 1}</span><span>${escapeHtml(item.name)}</span><span>${formatTime(item.duration)}</span></button></li>`).join('');
+  const nextQueueRenderKey = `${plan.id}|${timer.index}|${sequence.map(item => `${item.name}:${item.duration}`).join('|')}`;
+  if (queueRenderKey !== nextQueueRenderKey) {
+    els.timerQueue.innerHTML = sequence.map((item, index) => `<li class="${index === timer.index ? 'active' : ''}"><button type="button" class="queue-jump" data-index="${index}"${index === timer.index ? ' aria-current="step"' : ''}><span class="queue-index">${index + 1}</span><span>${escapeHtml(item.name)}</span><span>${formatTime(item.duration)}</span></button></li>`).join('');
+    queueRenderKey = nextQueueRenderKey;
+  }
 }
 
 function resetTimer(render = true) {
@@ -217,7 +222,7 @@ function advanceInterval() {
 }
 function skip() { if (!currentPlan()) return; const wasRunning = timer.running; const sequence = workoutSequence(); stopTicking(); if (timer.index < sequence.length - 1) { timer.index++; timer.warned10 = false; timer.remainingMs = currentInterval().duration * 1000; timer.finished = false; speakInterval(currentInterval()); } else { timer.finished = true; timer.remainingMs = 0; } if (wasRunning && !timer.finished) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
 function previous() { if (!currentPlan()) return; const wasRunning = timer.running; stopTicking(); if (timer.remainingMs < currentInterval().duration * 700) timer.remainingMs = currentInterval().duration * 1000; else if (timer.index > 0) { timer.index--; timer.remainingMs = currentInterval().duration * 1000; } timer.warned10 = false; timer.finished = false; if (wasRunning) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
-function jumpToInterval(index) { const sequence = workoutSequence(); if (!Number.isInteger(index) || index < 0 || index >= sequence.length || index === timer.index) return; const wasRunning = timer.running; stopTicking(); timer.index = index; timer.remainingMs = sequence[index].duration * 1000; timer.warned10 = false; timer.finished = false; if (wasRunning) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; speakInterval(sequence[index]); tick(); } renderTimer(); }
+function jumpToInterval(index) { const sequence = workoutSequence(); if (!Number.isInteger(index) || index < 0 || index >= sequence.length) return; stopTicking(); timer.index = index; timer.remainingMs = sequence[index].duration * 1000; timer.warned10 = false; timer.finished = false; unlockAudio(); timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); speakInterval(sequence[index]); tick(); }
 
 function unlockAudio() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') audioContext.resume(); }
 function cue() {
@@ -282,9 +287,7 @@ function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, char
 els.tabs.forEach(tab => tab.addEventListener('click', () => setView(tab.dataset.view)));
 els.timerPlanSelect.addEventListener('change', () => { timer.planId = els.timerPlanSelect.value; data.preferences.selectedPlanId = timer.planId; saveData(); resetTimer(); });
 els.startPauseBtn.addEventListener('click', startPause); els.skipBtn.addEventListener('click', skip); els.previousBtn.addEventListener('click', previous); els.resetBtn.addEventListener('click', () => resetTimer());
-function handleQueueJump(event) { const button = event.target.closest('.queue-jump'); if (!button) return; if (event.type === 'pointerdown') event.preventDefault(); jumpToInterval(Number(button.dataset.index)); }
-els.timerQueue.addEventListener('pointerdown', handleQueueJump);
-els.timerQueue.addEventListener('click', handleQueueJump);
+els.timerQueue.addEventListener('click', event => { const button = event.target.closest('.queue-jump'); if (button) jumpToInterval(Number(button.dataset.index)); });
 els.soundToggle.addEventListener('change', () => { data.preferences.sound = els.soundToggle.checked; saveData(); if (els.soundToggle.checked) unlockAudio(); });
 els.vibrationToggle.addEventListener('change', () => { data.preferences.vibration = els.vibrationToggle.checked; saveData(); });
 els.speechToggle.addEventListener('change', () => { data.preferences.speech = els.speechToggle.checked; saveData(); if (els.speechToggle.checked) speakInterval(currentInterval()); else if ('speechSynthesis' in window) speechSynthesis.cancel(); });
