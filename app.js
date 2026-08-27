@@ -189,9 +189,11 @@ function renderTimer() {
   els.overallProgress.style.width = `${duration ? Math.min(100, ((elapsedBefore + elapsedCurrent) / duration) * 100) : 0}%`;
   const nextQueueRenderKey = `${plan.id}|${timer.index}|${sequence.map(item => `${item.name}:${item.duration}`).join('|')}`;
   if (queueRenderKey !== nextQueueRenderKey) {
-    els.timerQueue.innerHTML = sequence.map((item, index) => `<li class="${index === timer.index ? 'active' : ''}"><button type="button" class="queue-jump" data-index="${index}"${index === timer.index ? ' aria-current="step"' : ''}><span class="queue-index">${index + 1}</span><span>${escapeHtml(item.name)}</span><span>${formatTime(item.duration)}</span></button></li>`).join('');
+    els.timerQueue.innerHTML = sequence.map((item, index) => `<li class="${index === timer.index ? 'active' : ''}"><button type="button" class="queue-jump" data-index="${index}"${index === timer.index ? ' aria-current="step"' : ''}><span class="queue-index">${index + 1}</span><span>${escapeHtml(item.name)}</span><span class="queue-time">${formatTime(item.duration)}</span></button></li>`).join('');
     queueRenderKey = nextQueueRenderKey;
   }
+  const activeQueueTime = els.timerQueue.querySelector('li.active .queue-time');
+  if (activeQueueTime) activeQueueTime.textContent = formatTime(timer.remainingMs / 1000);
 }
 
 function resetTimer(render = true) {
