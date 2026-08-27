@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e1117">
+  <meta name="description" content="A private, offline interval workout timer.">
+  <title>Interval Trainer</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#timer" aria-label="Interval Trainer home">
+      <span class="brand-mark" aria-hidden="true">IT</span>
+      <span>Interval Trainer</span>
+    </a>
+    <nav class="tabs" aria-label="Main sections">
+      <button class="tab active" data-view="timer">Timer</button>
+      <button class="tab" data-view="plans">Plans</button>
+      <button class="tab" data-view="bank">Exercises</button>
+      <button class="tab" data-view="settings">Settings</button>
+    </nav>
+    <button id="installBtn" class="button secondary compact" hidden>Install</button>
+  </header>
+
+  <main>
+    <section id="timerView" class="view active" aria-labelledby="timerHeading">
+      <div class="timer-shell">
+        <div class="timer-meta">
+          <div>
+            <p class="eyebrow">Current workout</p>
+            <select id="timerPlanSelect" aria-label="Workout plan"></select>
+            <p id="planRestTime" class="plan-rest-time">Rest between exercises: —</p>
+          </div>
+          <div class="progress-copy"><span id="intervalPosition">1 of 1</span><span id="totalRemaining">Total 00:00</span></div>
+        </div>
+        <div class="progress-track" aria-hidden="true"><div id="overallProgress"></div></div>
+
+        <div id="timerStage" class="timer-stage" data-state="ready">
+          <p id="timerStatus" class="eyebrow">Ready</p>
+          <h1 id="timerHeading">Choose a workout</h1>
+          <div id="timeDisplay" class="time-display" role="timer" aria-live="off">00:00</div>
+          <p id="nextInterval" class="next-copy">Next: —</p>
+        </div>
+
+        <div class="transport" aria-label="Timer controls">
+          <button id="previousBtn" class="icon-button" aria-label="Previous interval" title="Previous">↶</button>
+          <button id="startPauseBtn" class="button primary transport-main">Start</button>
+          <button id="skipBtn" class="icon-button" aria-label="Skip interval" title="Skip">↷</button>
+          <button id="resetBtn" class="button secondary">Reset</button>
+        </div>
+        <div class="queue-card">
+          <div class="section-heading"><div><p class="eyebrow">Workout queue</p><h2 id="queuePlanName">Intervals</h2></div><button id="editCurrentPlanBtn" class="button ghost compact">Edit plan</button></div>
+          <ol id="timerQueue" class="timer-queue"></ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="plansView" class="view" aria-labelledby="plansHeading">
+      <div class="page-heading"><div><p class="eyebrow">Build your session</p><h1 id="plansHeading">Workout plans</h1></div><button id="newPlanBtn" class="button primary">New plan</button></div>
+      <div id="plansGrid" class="card-grid"></div>
+    </section>
+
+    <section id="bankView" class="view" aria-labelledby="bankHeading">
+      <div class="page-heading"><div><p class="eyebrow">Reusable movements</p><h1 id="bankHeading">Exercise & stretch bank</h1></div><button id="newExerciseBtn" class="button primary">Add item</button></div>
+      <div class="toolbar"><input id="bankSearch" type="search" placeholder="Search exercises and stretches…"><select id="bankFilter" aria-label="Filter bank"><option value="all">All types</option><option value="exercise">Exercises</option><option value="stretch">Stretches</option></select></div>
+      <div id="bankGrid" class="card-grid"></div>
+    </section>
+
+    <section id="settingsView" class="view" aria-labelledby="settingsHeading">
+      <div class="page-heading"><div><p class="eyebrow">Personalize your timer</p><h1 id="settingsHeading">Settings</h1></div></div>
+      <div class="settings-grid">
+        <article class="panel settings-panel">
+          <h2>Cues</h2>
+          <p>Choose how the timer tells you that the next interval has started.</p>
+          <label class="setting-row"><span><strong>Sound cues</strong><small>Play a short tone between intervals.</small></span><input id="soundToggle" type="checkbox"></label>
+          <label class="setting-row"><span><strong>Vibration</strong><small>Vibrate on supported mobile devices.</small></span><input id="vibrationToggle" type="checkbox"></label>
+          <label class="setting-row"><span><strong>Speak intervals</strong><small>Announce each exercise and rest period.</small></span><input id="speechToggle" type="checkbox"></label>
+          <label class="setting-row"><span><strong>10-second warning</strong><small>Speak when an interval has 10 seconds remaining.</small></span><input id="warningToggle" type="checkbox"></label>
+        </article>
+        <article class="panel settings-panel">
+          <h2>Announcement voice</h2>
+          <p>Voices are supplied by your browser and device.</p>
+          <label class="voice-setting">Voice<select id="voiceSelect" aria-label="Announcement voice"></select></label>
+          <button id="testVoiceBtn" type="button" class="button secondary">Test voice</button>
+        </article>
+        <article class="panel settings-panel">
+          <h2>While timing</h2>
+          <p id="wakeLockStatus">The screen stays awake while a workout is running when your browser supports it.</p>
+        </article>
+        <article class="settings-section-heading"><p class="eyebrow">Storage</p><h2>Your data</h2></article>
+        <article class="panel"><h2>Export</h2><p>Download all plans, exercises, and preferences as readable JSON.</p><button id="exportBtn" class="button primary">Export JSON</button></article>
+        <article class="panel"><h2>Import</h2><p>Replace or merge your current data with an Interval Trainer JSON file.</p><input id="importFile" type="file" accept="application/json,.json" hidden><button id="chooseImportBtn" class="button secondary">Choose JSON file</button></article>
+        <article class="panel privacy"><h2>Private by design</h2><p>Everything stays in this browser's local storage. No account, analytics, or server database.</p><button id="restoreDefaultsBtn" class="button danger ghost">Restore sample data</button></article>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="planDialog">
+    <form id="planForm" method="dialog">
+      <div class="dialog-heading"><div><p class="eyebrow">Workout editor</p><h2 id="planDialogTitle">New plan</h2></div><button type="button" class="close-button" data-close="planDialog" aria-label="Close">×</button></div>
+      <input id="planId" type="hidden">
+      <label>Plan name<input id="planName" required maxlength="80" placeholder="e.g. Morning mobility"></label>
+      <label>Rest between exercises (seconds)<input id="planRestDuration" type="number" required min="0" max="3600" inputmode="numeric" value="20"><span class="field-help">Set to 0 for no automatic rest.</span></label>
+      <label>Workout repeats<input id="planRepeats" type="number" required min="1" max="100" inputmode="numeric" value="1"><span class="field-help">Repeat the complete exercise sequence this many times.</span></label>
+      <div class="interval-editor-heading"><h3>Intervals</h3><button id="addIntervalBtn" type="button" class="button secondary compact">Add interval</button></div>
+      <div id="intervalEditor" class="interval-editor"></div>
+      <div class="dialog-actions"><button type="button" data-close="planDialog" class="button ghost">Cancel</button><button id="savePlanBtn" value="default" class="button primary">Save plan</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="exerciseDialog">
+    <form id="exerciseForm" method="dialog">
+      <div class="dialog-heading"><div><p class="eyebrow">Bank item</p><h2 id="exerciseDialogTitle">Add item</h2></div><button type="button" class="close-button" data-close="exerciseDialog" aria-label="Close">×</button></div>
+      <input id="exerciseId" type="hidden">
+      <label>Name<input id="exerciseName" required maxlength="80" placeholder="e.g. High knees"></label>
+      <label>Type<select id="exerciseType"><option value="exercise">Exercise</option><option value="stretch">Stretch</option></select></label>
+      <label>Default duration (seconds)<input id="exerciseDuration" type="number" required min="1" max="86400" inputmode="numeric" value="30"></label>
+      <div class="dialog-actions"><button type="button" data-close="exerciseDialog" class="button ghost">Cancel</button><button value="default" class="button primary">Save item</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="importDialog">
+    <form method="dialog">
+      <div class="dialog-heading"><div><p class="eyebrow">Import valid file</p><h2>How should it be added?</h2></div><button type="button" class="close-button" data-close="importDialog" aria-label="Close">×</button></div>
+      <p id="importSummary"></p>
+      <div class="dialog-actions stacked"><button id="mergeImportBtn" value="merge" class="button secondary">Merge with current data</button><button id="replaceImportBtn" value="replace" class="button danger">Replace current data</button><button type="button" data-close="importDialog" class="button ghost">Cancel</button></div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js" defer></script>
+</body>
+</html>
