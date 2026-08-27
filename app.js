@@ -282,7 +282,9 @@ function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, char
 els.tabs.forEach(tab => tab.addEventListener('click', () => setView(tab.dataset.view)));
 els.timerPlanSelect.addEventListener('change', () => { timer.planId = els.timerPlanSelect.value; data.preferences.selectedPlanId = timer.planId; saveData(); resetTimer(); });
 els.startPauseBtn.addEventListener('click', startPause); els.skipBtn.addEventListener('click', skip); els.previousBtn.addEventListener('click', previous); els.resetBtn.addEventListener('click', () => resetTimer());
-els.timerQueue.addEventListener('click', event => { const button = event.target.closest('.queue-jump'); if (button) jumpToInterval(Number(button.dataset.index)); });
+function handleQueueJump(event) { const button = event.target.closest('.queue-jump'); if (!button) return; if (event.type === 'pointerdown') event.preventDefault(); jumpToInterval(Number(button.dataset.index)); }
+els.timerQueue.addEventListener('pointerdown', handleQueueJump);
+els.timerQueue.addEventListener('click', handleQueueJump);
 els.soundToggle.addEventListener('change', () => { data.preferences.sound = els.soundToggle.checked; saveData(); if (els.soundToggle.checked) unlockAudio(); });
 els.vibrationToggle.addEventListener('change', () => { data.preferences.vibration = els.vibrationToggle.checked; saveData(); });
 els.speechToggle.addEventListener('change', () => { data.preferences.speech = els.speechToggle.checked; saveData(); if (els.speechToggle.checked) speakInterval(currentInterval()); else if ('speechSynthesis' in window) speechSynthesis.cancel(); });
