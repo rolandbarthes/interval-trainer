@@ -186,7 +186,7 @@ function renderTimer() {
   els.startPauseBtn.textContent = timer.finished ? 'Restart' : timer.running ? 'Pause' : timer.remainingMs < interval.duration * 1000 ? 'Resume' : 'Start';
   els.startPauseBtn.disabled = false; els.previousBtn.disabled = timer.index === 0 && timer.remainingMs === interval.duration * 1000; els.skipBtn.disabled = false;
   els.overallProgress.style.width = `${duration ? Math.min(100, ((elapsedBefore + elapsedCurrent) / duration) * 100) : 0}%`;
-  els.timerQueue.innerHTML = sequence.map((item, index) => `<li class="${index === timer.index ? 'active' : ''}"><span class="queue-index">${index + 1}</span><span>${escapeHtml(item.name)}</span><span>${formatTime(item.duration)}</span></li>`).join('');
+  els.timerQueue.innerHTML = sequence.map((item, index) => `<li class="${index === timer.index ? 'active' : ''}"><button type="button" class="queue-jump" data-index="${index}"${index === timer.index ? ' aria-current="step"' : ''}><span class="queue-index">${index + 1}</span><span>${escapeHtml(item.name)}</span><span>${formatTime(item.duration)}</span></button></li>`).join('');
 }
 
 function resetTimer(render = true) {
@@ -217,6 +217,7 @@ function advanceInterval() {
 }
 function skip() { if (!currentPlan()) return; const wasRunning = timer.running; const sequence = workoutSequence(); stopTicking(); if (timer.index < sequence.length - 1) { timer.index++; timer.warned10 = false; timer.remainingMs = currentInterval().duration * 1000; timer.finished = false; speakInterval(currentInterval()); } else { timer.finished = true; timer.remainingMs = 0; } if (wasRunning && !timer.finished) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
 function previous() { if (!currentPlan()) return; const wasRunning = timer.running; stopTicking(); if (timer.remainingMs < currentInterval().duration * 700) timer.remainingMs = currentInterval().duration * 1000; else if (timer.index > 0) { timer.index--; timer.remainingMs = currentInterval().duration * 1000; } timer.warned10 = false; timer.finished = false; if (wasRunning) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
+function jumpToInterval(index) { const sequence = workoutSequence(); if (!Number.isInteger(index) || index < 0 || index >= sequence.length || index === timer.index) return; const wasRunning = timer.running; stopTicking(); timer.index = index; timer.remainingMs = sequence[index].duration * 1000; timer.warned10 = false; timer.finished = false; if (wasRunning) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; speakInterval(sequence[index]); tick(); } renderTimer(); }
 
 function unlockAudio() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') audioContext.resume(); }
 function cue() {
@@ -281,6 +282,7 @@ function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, char
 els.tabs.forEach(tab => tab.addEventListener('click', () => setView(tab.dataset.view)));
 els.timerPlanSelect.addEventListener('change', () => { timer.planId = els.timerPlanSelect.value; data.preferences.selectedPlanId = timer.planId; saveData(); resetTimer(); });
 els.startPauseBtn.addEventListener('click', startPause); els.skipBtn.addEventListener('click', skip); els.previousBtn.addEventListener('click', previous); els.resetBtn.addEventListener('click', () => resetTimer());
+els.timerQueue.addEventListener('click', event => { const button = event.target.closest('.queue-jump'); if (button) jumpToInterval(Number(button.dataset.index)); });
 els.soundToggle.addEventListener('change', () => { data.preferences.sound = els.soundToggle.checked; saveData(); if (els.soundToggle.checked) unlockAudio(); });
 els.vibrationToggle.addEventListener('change', () => { data.preferences.vibration = els.vibrationToggle.checked; saveData(); });
 els.speechToggle.addEventListener('change', () => { data.preferences.speech = els.speechToggle.checked; saveData(); if (els.speechToggle.checked) speakInterval(currentInterval()); else if ('speechSynthesis' in window) speechSynthesis.cancel(); });
