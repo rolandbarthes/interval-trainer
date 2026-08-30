@@ -2,14 +2,14 @@
 
 const STORAGE_KEY = 'interval-trainer-data-v1';
 const DATA_VERSION = 1;
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const defaults = {
   version: DATA_VERSION,
-  preferences: { sound: true, vibration: true, speech: true, tenSecondWarning: true, voiceURI: '', selectedPlanId: 'lower-back' },
+  preferences: { alertMode: 'beep', vibration: true, tenSecondWarning: true, voiceURI: '', selectedPlanId: 'lower-back' },
   bank: [
     { id: 'dead-bug', name: 'Dead bug', type: 'exercise', duration: 40 },
     { id: 'bird-dog', name: 'Bird dog', type: 'exercise', duration: 40 },
@@ -75,8 +75,8 @@ const els = {
   tabs: $$('.tab'), views: $$('.view'), timerPlanSelect: $('#timerPlanSelect'), intervalPosition: $('#intervalPosition'),
   totalRemaining: $('#totalRemaining'), overallProgress: $('#overallProgress'), timerStage: $('#timerStage'), timerStatus: $('#timerStatus'),
   timerHeading: $('#timerHeading'), timeDisplay: $('#timeDisplay'), nextInterval: $('#nextInterval'), previousBtn: $('#previousBtn'),
-  startPauseBtn: $('#startPauseBtn'), skipBtn: $('#skipBtn'), resetBtn: $('#resetBtn'), soundToggle: $('#soundToggle'),
-  vibrationToggle: $('#vibrationToggle'), speechToggle: $('#speechToggle'), warningToggle: $('#warningToggle'), voiceSelect: $('#voiceSelect'), testVoiceBtn: $('#testVoiceBtn'), planRestTime: $('#planRestTime'), timerQueue: $('#timerQueue'), queuePlanName: $('#queuePlanName'), plansGrid: $('#plansGrid'),
+  startPauseBtn: $('#startPauseBtn'), skipBtn: $('#skipBtn'), resetBtn: $('#resetBtn'), alertModeInputs: $$('input[name="alertMode"]'),
+  vibrationToggle: $('#vibrationToggle'), warningToggle: $('#warningToggle'), voiceSettingsPanel: $('#voiceSettingsPanel'), voiceSelect: $('#voiceSelect'), testVoiceBtn: $('#testVoiceBtn'), planRestTime: $('#planRestTime'), timerQueue: $('#timerQueue'), queuePlanName: $('#queuePlanName'), plansGrid: $('#plansGrid'),
   bankGrid: $('#bankGrid'), bankSearch: $('#bankSearch'), bankFilter: $('#bankFilter'), planDialog: $('#planDialog'), planForm: $('#planForm'),
   planDialogTitle: $('#planDialogTitle'), planId: $('#planId'), planName: $('#planName'), planRestDuration: $('#planRestDuration'), planRepeats: $('#planRepeats'), intervalEditor: $('#intervalEditor'),
   exerciseDialog: $('#exerciseDialog'), exerciseForm: $('#exerciseForm'), exerciseDialogTitle: $('#exerciseDialogTitle'),
@@ -102,7 +102,7 @@ function isValidData(value) {
 function normalizeData(value) {
   return {
     version: DATA_VERSION,
-    preferences: { sound: value.preferences?.sound !== false, vibration: value.preferences?.vibration !== false, speech: value.preferences?.speech === true, tenSecondWarning: value.preferences?.tenSecondWarning !== false, voiceURI: value.preferences?.voiceURI || '', selectedPlanId: value.preferences?.selectedPlanId || value.plans[0]?.id || null },
+    preferences: { alertMode: ['voice', 'beep'].includes(value.preferences?.alertMode) ? value.preferences.alertMode : (value.preferences?.speech === true ? 'voice' : 'beep'), vibration: value.preferences?.vibration !== false, tenSecondWarning: value.preferences?.tenSecondWarning !== false, voiceURI: value.preferences?.voiceURI || '', selectedPlanId: value.preferences?.selectedPlanId || value.plans[0]?.id || null },
     bank: value.bank.map(item => ({ id: item.id || uid(), name: item.name.trim(), type: item.type, duration: Math.round(Number(item.duration)) })),
     plans: value.plans.map(plan => ({ id: plan.id || uid(), name: plan.name.trim(), restDuration: Math.max(0, Math.round(Number(plan.restDuration) || 0)), repeats: Math.max(1, Math.round(Number(plan.repeats) || 1)), intervals: plan.intervals.map(item => ({ id: item.id || uid(), name: item.name.trim(), duration: Math.round(Number(item.duration)), bankId: item.bankId || null })) }))
   };
@@ -144,7 +144,8 @@ function setView(name) {
   history.replaceState(null, '', `#${name}`);
 }
 
-function renderAll() { renderPlanSelect(); renderPlans(); renderBank(); resetTimer(false); els.soundToggle.checked = data.preferences.sound; els.vibrationToggle.checked = data.preferences.vibration; els.speechToggle.checked = data.preferences.speech; els.warningToggle.checked = data.preferences.tenSecondWarning; els.appVersion.textContent = APP_VERSION; renderVoices(); }
+function renderAlertSettings() { els.alertModeInputs.forEach(input => { input.checked = input.value === data.preferences.alertMode; }); els.voiceSettingsPanel.hidden = data.preferences.alertMode !== 'voice'; }
+function renderAll() { renderPlanSelect(); renderPlans(); renderBank(); resetTimer(false); renderAlertSettings(); els.vibrationToggle.checked = data.preferences.vibration; els.warningToggle.checked = data.preferences.tenSecondWarning; els.appVersion.textContent = APP_VERSION; renderVoices(); }
 
 function renderPlanSelect() {
   els.timerPlanSelect.innerHTML = data.plans.length ? data.plans.map(plan => `<option value="${escapeHtml(plan.id)}">${escapeHtml(plan.name)}</option>`).join('') : '<option value="">No plans yet</option>';
@@ -206,13 +207,13 @@ function startPause() {
   if (timer.finished) resetTimer();
   if (timer.running) { timer.remainingMs = Math.max(0, timer.endAt - performance.now()); stopTicking(); releaseWakeLock(); renderTimer(); return; }
   if (!currentInterval()) return;
-  unlockAudio(); timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); speakInterval(currentInterval()); tick(); renderTimer();
+  unlockAudio(); timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); announceInterval(currentInterval()); tick(); renderTimer();
 }
 
 function tick() {
   if (!timer.running) return;
   timer.remainingMs = Math.max(0, timer.endAt - performance.now());
-  if (data.preferences.tenSecondWarning && !timer.warned10 && currentInterval()?.duration > 10 && timer.remainingMs <= 10000 && timer.remainingMs > 0) { timer.warned10 = true; speakInterval({ name: '10 seconds remaining' }); }
+  if (data.preferences.tenSecondWarning && !timer.warned10 && currentInterval()?.duration > 10 && timer.remainingMs <= 10000 && timer.remainingMs > 0) { timer.warned10 = true; playWarning(); }
   if (timer.remainingMs <= 0) { advanceInterval(); return; }
   renderTimer(); timer.frame = requestAnimationFrame(tick);
 }
@@ -220,12 +221,12 @@ function tick() {
 function stopTicking() { timer.running = false; if (timer.frame) cancelAnimationFrame(timer.frame); timer.frame = null; }
 function advanceInterval() {
   const sequence = workoutSequence(); cue();
-  if (timer.index < sequence.length - 1) { timer.index += 1; timer.warned10 = false; timer.remainingMs = sequence[timer.index].duration * 1000; if (timer.running) timer.endAt = performance.now() + timer.remainingMs; speakInterval(currentInterval()); renderTimer(); if (timer.running) timer.frame = requestAnimationFrame(tick); }
+  if (timer.index < sequence.length - 1) { timer.index += 1; timer.warned10 = false; timer.remainingMs = sequence[timer.index].duration * 1000; if (timer.running) timer.endAt = performance.now() + timer.remainingMs; announceInterval(currentInterval()); renderTimer(); if (timer.running) timer.frame = requestAnimationFrame(tick); }
   else { stopTicking(); timer.finished = true; timer.remainingMs = 0; releaseWakeLock(); renderTimer(); }
 }
-function skip() { if (!currentPlan()) return; const wasRunning = timer.running; const sequence = workoutSequence(); stopTicking(); if (timer.index < sequence.length - 1) { timer.index++; timer.warned10 = false; timer.remainingMs = currentInterval().duration * 1000; timer.finished = false; speakInterval(currentInterval()); } else { timer.finished = true; timer.remainingMs = 0; } if (wasRunning && !timer.finished) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
+function skip() { if (!currentPlan()) return; const wasRunning = timer.running; const sequence = workoutSequence(); stopTicking(); if (timer.index < sequence.length - 1) { timer.index++; timer.warned10 = false; timer.remainingMs = currentInterval().duration * 1000; timer.finished = false; announceInterval(currentInterval()); } else { timer.finished = true; timer.remainingMs = 0; } if (wasRunning && !timer.finished) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
 function previous() { if (!currentPlan()) return; const wasRunning = timer.running; stopTicking(); if (timer.remainingMs < currentInterval().duration * 700) timer.remainingMs = currentInterval().duration * 1000; else if (timer.index > 0) { timer.index--; timer.remainingMs = currentInterval().duration * 1000; } timer.warned10 = false; timer.finished = false; if (wasRunning) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
-function jumpToInterval(index) { const sequence = workoutSequence(); if (!Number.isInteger(index) || index < 0 || index >= sequence.length) return; stopTicking(); timer.index = index; timer.remainingMs = sequence[index].duration * 1000; timer.warned10 = false; timer.finished = false; unlockAudio(); timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); speakInterval(sequence[index]); tick(); }
+function jumpToInterval(index) { const sequence = workoutSequence(); if (!Number.isInteger(index) || index < 0 || index >= sequence.length) return; stopTicking(); timer.index = index; timer.remainingMs = sequence[index].duration * 1000; timer.warned10 = false; timer.finished = false; unlockAudio(); timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); announceInterval(sequence[index]); tick(); }
 
 function configureAudioMixing() {
   if ('audioSession' in navigator) {
@@ -233,18 +234,21 @@ function configureAudioMixing() {
   }
 }
 function unlockAudio() { configureAudioMixing(); if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') audioContext.resume(); }
+function playTone(frequency, delay = 0, duration = .18) { unlockAudio(); const osc = audioContext.createOscillator(); const gain = audioContext.createGain(); const start = audioContext.currentTime + delay; osc.frequency.value = frequency; gain.gain.setValueAtTime(.12, start); gain.gain.exponentialRampToValueAtTime(.001, start + duration); osc.connect(gain).connect(audioContext.destination); osc.start(start); osc.stop(start + duration); }
 function cue() {
-  if (data.preferences.sound) { unlockAudio(); const osc = audioContext.createOscillator(); const gain = audioContext.createGain(); osc.frequency.value = timer.index === workoutSequence().length - 1 ? 880 : 660; gain.gain.setValueAtTime(.12, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + .28); osc.connect(gain).connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + .3); }
+  if (data.preferences.alertMode === 'beep') playTone(timer.index === workoutSequence().length - 1 ? 880 : 660, 0, .28);
   if (data.preferences.vibration && navigator.vibrate) navigator.vibrate([160, 70, 160]);
 }
+function announceInterval(interval) { if (data.preferences.alertMode === 'voice') speakInterval(interval); }
+function playWarning() { if (data.preferences.alertMode === 'voice') speakInterval({ name: '10 seconds remaining' }); else { playTone(880); playTone(880, .2); playTone(1100, .4); } }
 function renderVoices() {
-  if (!('speechSynthesis' in window)) { els.speechToggle.disabled = true; els.voiceSelect.innerHTML = '<option>Not supported</option>'; return; }
+  if (!('speechSynthesis' in window)) { const voiceInput = els.alertModeInputs.find(input => input.value === 'voice'); if (voiceInput) voiceInput.disabled = true; els.voiceSelect.innerHTML = '<option>Not supported</option>'; return; }
   const voices = speechSynthesis.getVoices();
   els.voiceSelect.innerHTML = `<option value="">System default</option>${voices.map(voice => `<option value="${escapeHtml(voice.voiceURI)}" ${voice.voiceURI === data.preferences.voiceURI ? 'selected' : ''}>${escapeHtml(voice.name)} (${escapeHtml(voice.lang)})</option>`).join('')}`;
   els.voiceSelect.value = voices.some(voice => voice.voiceURI === data.preferences.voiceURI) ? data.preferences.voiceURI : '';
 }
 function speakInterval(interval) {
-  if (!data.preferences.speech || !interval || !('speechSynthesis' in window)) return;
+  if (!interval || !('speechSynthesis' in window)) return;
   configureAudioMixing();
   clearTimeout(speechRetryTimer);
   const speak = () => {
@@ -258,7 +262,6 @@ function speakInterval(interval) {
 }
 function testVoice() {
   if (!('speechSynthesis' in window)) { toast('Text-to-speech is not supported in this browser'); return; }
-  data.preferences.speech = true; els.speechToggle.checked = true; saveData();
   speakInterval({ name: 'Voice announcements are ready' });
 }
 async function requestWakeLock() { try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (error) { console.info('Wake lock unavailable', error); } }
@@ -297,11 +300,10 @@ els.tabs.forEach(tab => tab.addEventListener('click', () => setView(tab.dataset.
 els.timerPlanSelect.addEventListener('change', () => { timer.planId = els.timerPlanSelect.value; data.preferences.selectedPlanId = timer.planId; saveData(); resetTimer(); });
 els.startPauseBtn.addEventListener('click', startPause); els.skipBtn.addEventListener('click', skip); els.previousBtn.addEventListener('click', previous); els.resetBtn.addEventListener('click', () => resetTimer());
 els.timerQueue.addEventListener('click', event => { const button = event.target.closest('.queue-jump'); if (button) jumpToInterval(Number(button.dataset.index)); });
-els.soundToggle.addEventListener('change', () => { data.preferences.sound = els.soundToggle.checked; saveData(); if (els.soundToggle.checked) unlockAudio(); });
+els.alertModeInputs.forEach(input => input.addEventListener('change', () => { if (!input.checked) return; data.preferences.alertMode = input.value; saveData(); renderAlertSettings(); if (input.value === 'beep') { if ('speechSynthesis' in window) speechSynthesis.cancel(); playTone(660); } else speakInterval(currentInterval()); }));
 els.vibrationToggle.addEventListener('change', () => { data.preferences.vibration = els.vibrationToggle.checked; saveData(); });
-els.speechToggle.addEventListener('change', () => { data.preferences.speech = els.speechToggle.checked; saveData(); if (els.speechToggle.checked) speakInterval(currentInterval()); else if ('speechSynthesis' in window) speechSynthesis.cancel(); });
 els.warningToggle.addEventListener('change', () => { data.preferences.tenSecondWarning = els.warningToggle.checked; saveData(); });
-els.voiceSelect.addEventListener('change', () => { data.preferences.voiceURI = els.voiceSelect.value; saveData(); if (data.preferences.speech) speakInterval(currentInterval()); });
+els.voiceSelect.addEventListener('change', () => { data.preferences.voiceURI = els.voiceSelect.value; saveData(); if (data.preferences.alertMode === 'voice') speakInterval(currentInterval()); });
 els.testVoiceBtn.addEventListener('click', testVoice);
 $$('[data-close]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.close).close()));
 $('#newPlanBtn').addEventListener('click', () => openPlanEditor()); $('#editCurrentPlanBtn').addEventListener('click', () => currentPlan() ? openPlanEditor(currentPlan().id) : openPlanEditor());
@@ -319,7 +321,7 @@ els.installBtn.addEventListener('click', async () => { if (!deferredInstall) ret
 window.addEventListener('appinstalled', () => { els.installBtn.hidden = true; toast('App installed'); });
 if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', renderVoices);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; renderVoices(); setTimeout(renderVoices, 300); if (timer.running) { timer.remainingMs = Math.max(0, timer.endAt - performance.now()); if (timer.remainingMs <= 0) advanceInterval(); requestWakeLock(); } });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=16').catch(error => console.warn('Service worker registration failed', error)));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=17').catch(error => console.warn('Service worker registration failed', error)));
 
 setView(['timer','plans','bank','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'timer');
 renderAll();

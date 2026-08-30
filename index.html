@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="styles.css?v=14">
+  <link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
   <header class="topbar">
@@ -76,12 +76,11 @@
         <article class="panel settings-panel">
           <h2>Cues</h2>
           <p>Choose how the timer tells you that the next interval has started.</p>
-          <label class="setting-row"><span><strong>Sound cues</strong><small>Play a short tone between intervals.</small></span><input id="soundToggle" type="checkbox"></label>
+          <fieldset class="alert-mode"><legend>Alert style</legend><label><input type="radio" name="alertMode" value="beep"><span><strong>Beep alerts</strong><small>Music-friendly: beep at interval changes and beep three times at the 10-second warning. Never speaks.</small></span></label><label><input type="radio" name="alertMode" value="voice"><span><strong>Voice alerts</strong><small>Speaks exercise names, rest periods, and the 10-second warning. Voice alerts pause background music on iPhone and iPad.</small></span></label></fieldset>
           <label class="setting-row"><span><strong>Vibration</strong><small>Vibrate on supported mobile devices.</small></span><input id="vibrationToggle" type="checkbox"></label>
-          <label class="setting-row"><span><strong>Speak intervals</strong><small>Announce each exercise and rest period. On iPhone and iPad, speech may pause music from other apps.</small></span><input id="speechToggle" type="checkbox"></label>
-          <label class="setting-row"><span><strong>10-second warning</strong><small>Speak when an interval has 10 seconds remaining. Requires spoken intervals.</small></span><input id="warningToggle" type="checkbox"></label>
+          <label class="setting-row"><span><strong>10-second warning</strong><small>Give a spoken or beep warning, according to the selected alert style.</small></span><input id="warningToggle" type="checkbox"></label>
         </article>
-        <article class="panel settings-panel">
+        <article id="voiceSettingsPanel" class="panel settings-panel">
           <h2>Announcement voice</h2>
           <p>Voices are supplied by your browser and device.</p>
           <label class="voice-setting">Voice<select id="voiceSelect" aria-label="Announcement voice"></select></label>
@@ -129,6 +128,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=16" defer></script>
+  <script src="app.js?v=17" defer></script>
 </body>
 </html>
