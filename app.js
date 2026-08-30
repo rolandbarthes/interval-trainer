@@ -226,7 +226,12 @@ function skip() { if (!currentPlan()) return; const wasRunning = timer.running; 
 function previous() { if (!currentPlan()) return; const wasRunning = timer.running; stopTicking(); if (timer.remainingMs < currentInterval().duration * 700) timer.remainingMs = currentInterval().duration * 1000; else if (timer.index > 0) { timer.index--; timer.remainingMs = currentInterval().duration * 1000; } timer.warned10 = false; timer.finished = false; if (wasRunning) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
 function jumpToInterval(index) { const sequence = workoutSequence(); if (!Number.isInteger(index) || index < 0 || index >= sequence.length) return; stopTicking(); timer.index = index; timer.remainingMs = sequence[index].duration * 1000; timer.warned10 = false; timer.finished = false; unlockAudio(); timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); speakInterval(sequence[index]); tick(); }
 
-function unlockAudio() { if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') audioContext.resume(); }
+function configureAudioMixing() {
+  if ('audioSession' in navigator) {
+    try { navigator.audioSession.type = 'transient'; } catch (error) { console.info('Audio mixing unavailable', error); }
+  }
+}
+function unlockAudio() { configureAudioMixing(); if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') audioContext.resume(); }
 function cue() {
   if (data.preferences.sound) { unlockAudio(); const osc = audioContext.createOscillator(); const gain = audioContext.createGain(); osc.frequency.value = timer.index === workoutSequence().length - 1 ? 880 : 660; gain.gain.setValueAtTime(.12, audioContext.currentTime); gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + .28); osc.connect(gain).connect(audioContext.destination); osc.start(); osc.stop(audioContext.currentTime + .3); }
   if (data.preferences.vibration && navigator.vibrate) navigator.vibrate([160, 70, 160]);
@@ -239,6 +244,7 @@ function renderVoices() {
 }
 function speakInterval(interval) {
   if (!data.preferences.speech || !interval || !('speechSynthesis' in window)) return;
+  configureAudioMixing();
   clearTimeout(speechRetryTimer);
   const speak = () => {
     activeUtterance = new SpeechSynthesisUtterance(interval.name);

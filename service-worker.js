@@ -1,9 +1,9 @@
-const CACHE = 'interval-trainer-v14';
+const CACHE = 'interval-trainer-v15';
 const ASSETS = [
   './',
   './index.html',
   './styles.css?v=14',
-  './app.js?v=14',
+  './app.js?v=15',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-180.png',
