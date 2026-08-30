@@ -318,7 +318,7 @@ els.installBtn.addEventListener('click', async () => { if (!deferredInstall) ret
 window.addEventListener('appinstalled', () => { els.installBtn.hidden = true; toast('App installed'); });
 if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', renderVoices);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; renderVoices(); setTimeout(renderVoices, 300); if (timer.running) { timer.remainingMs = Math.max(0, timer.endAt - performance.now()); if (timer.remainingMs <= 0) advanceInterval(); requestWakeLock(); } });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=14').catch(error => console.warn('Service worker registration failed', error)));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=15').catch(error => console.warn('Service worker registration failed', error)));
 
 setView(['timer','plans','bank','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'timer');
 renderAll();
