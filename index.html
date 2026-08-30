@@ -9,7 +9,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
   <header class="topbar">
@@ -76,7 +76,8 @@
         <article class="panel settings-panel">
           <h2>Cues</h2>
           <p>Choose how the timer tells you that the next interval has started.</p>
-          <fieldset class="alert-mode"><legend>Alert style</legend><label><input type="radio" name="alertMode" value="beep"><span><strong>Beep alerts</strong><small>Music-friendly: beep at interval changes and beep three times at the 10-second warning. Never speaks.</small></span></label><label><input type="radio" name="alertMode" value="voice"><span><strong>Voice alerts</strong><small>Speaks exercise names, rest periods, and the 10-second warning. Voice alerts pause background music on iPhone and iPad.</small></span></label></fieldset>
+          <fieldset class="alert-mode"><legend>Alert style</legend><label><input type="radio" name="alertMode" value="beep"><span><strong>Beep alerts</strong><small>Music-friendly: three low beeps start each interval; three higher beeps give the 10-second warning. Never speaks.</small></span></label><label><input type="radio" name="alertMode" value="voice"><span><strong>Voice alerts</strong><small>Speaks exercise names, rest periods, and the 10-second warning. Voice alerts pause background music on iPhone and iPad.</small></span></label></fieldset>
+          <label class="volume-setting" for="alertVolume"><span><strong>Alert volume</strong><output id="alertVolumeValue" for="alertVolume">80%</output></span><input id="alertVolume" type="range" min="0" max="100" step="5" value="80"></label>
           <label class="setting-row"><span><strong>Vibration</strong><small id="vibrationHelp">Vibrate on supported mobile devices.</small></span><input id="vibrationToggle" type="checkbox"></label>
           <label class="setting-row"><span><strong>10-second warning</strong><small>Give a spoken or beep warning, according to the selected alert style.</small></span><input id="warningToggle" type="checkbox"></label>
         </article>
@@ -128,6 +129,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=18" defer></script>
+  <script src="app.js?v=19" defer></script>
 </body>
 </html>

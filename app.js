@@ -2,14 +2,14 @@
 
 const STORAGE_KEY = 'interval-trainer-data-v1';
 const DATA_VERSION = 1;
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.3.0';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const defaults = {
   version: DATA_VERSION,
-  preferences: { alertMode: 'beep', vibration: true, tenSecondWarning: true, voiceURI: '', selectedPlanId: 'lower-back' },
+  preferences: { alertMode: 'beep', alertVolume: .8, vibration: true, tenSecondWarning: true, voiceURI: '', selectedPlanId: 'lower-back' },
   bank: [
     { id: 'dead-bug', name: 'Dead bug', type: 'exercise', duration: 40 },
     { id: 'bird-dog', name: 'Bird dog', type: 'exercise', duration: 40 },
@@ -77,7 +77,7 @@ const els = {
   totalRemaining: $('#totalRemaining'), overallProgress: $('#overallProgress'), timerStage: $('#timerStage'), timerStatus: $('#timerStatus'),
   timerHeading: $('#timerHeading'), timeDisplay: $('#timeDisplay'), nextInterval: $('#nextInterval'), previousBtn: $('#previousBtn'),
   startPauseBtn: $('#startPauseBtn'), skipBtn: $('#skipBtn'), resetBtn: $('#resetBtn'), alertModeInputs: $$('input[name="alertMode"]'),
-  vibrationToggle: $('#vibrationToggle'), vibrationHelp: $('#vibrationHelp'), warningToggle: $('#warningToggle'), voiceSettingsPanel: $('#voiceSettingsPanel'), voiceSelect: $('#voiceSelect'), testVoiceBtn: $('#testVoiceBtn'), planRestTime: $('#planRestTime'), timerQueue: $('#timerQueue'), queuePlanName: $('#queuePlanName'), plansGrid: $('#plansGrid'),
+  alertVolume: $('#alertVolume'), alertVolumeValue: $('#alertVolumeValue'), vibrationToggle: $('#vibrationToggle'), vibrationHelp: $('#vibrationHelp'), warningToggle: $('#warningToggle'), voiceSettingsPanel: $('#voiceSettingsPanel'), voiceSelect: $('#voiceSelect'), testVoiceBtn: $('#testVoiceBtn'), planRestTime: $('#planRestTime'), timerQueue: $('#timerQueue'), queuePlanName: $('#queuePlanName'), plansGrid: $('#plansGrid'),
   bankGrid: $('#bankGrid'), bankSearch: $('#bankSearch'), bankFilter: $('#bankFilter'), planDialog: $('#planDialog'), planForm: $('#planForm'),
   planDialogTitle: $('#planDialogTitle'), planId: $('#planId'), planName: $('#planName'), planRestDuration: $('#planRestDuration'), planRepeats: $('#planRepeats'), intervalEditor: $('#intervalEditor'),
   exerciseDialog: $('#exerciseDialog'), exerciseForm: $('#exerciseForm'), exerciseDialogTitle: $('#exerciseDialogTitle'),
@@ -103,7 +103,7 @@ function isValidData(value) {
 function normalizeData(value) {
   return {
     version: DATA_VERSION,
-    preferences: { alertMode: ['voice', 'beep'].includes(value.preferences?.alertMode) ? value.preferences.alertMode : (value.preferences?.speech === true ? 'voice' : 'beep'), vibration: value.preferences?.vibration !== false, tenSecondWarning: value.preferences?.tenSecondWarning !== false, voiceURI: value.preferences?.voiceURI || '', selectedPlanId: value.preferences?.selectedPlanId || value.plans[0]?.id || null },
+    preferences: { alertMode: ['voice', 'beep'].includes(value.preferences?.alertMode) ? value.preferences.alertMode : (value.preferences?.speech === true ? 'voice' : 'beep'), alertVolume: Number.isFinite(Number(value.preferences?.alertVolume)) ? Math.min(1, Math.max(0, Number(value.preferences.alertVolume))) : .8, vibration: value.preferences?.vibration !== false, tenSecondWarning: value.preferences?.tenSecondWarning !== false, voiceURI: value.preferences?.voiceURI || '', selectedPlanId: value.preferences?.selectedPlanId || value.plans[0]?.id || null },
     bank: value.bank.map(item => ({ id: item.id || uid(), name: item.name.trim(), type: item.type, duration: Math.round(Number(item.duration)) })),
     plans: value.plans.map(plan => ({ id: plan.id || uid(), name: plan.name.trim(), restDuration: Math.max(0, Math.round(Number(plan.restDuration) || 0)), repeats: Math.max(1, Math.round(Number(plan.repeats) || 1)), intervals: plan.intervals.map(item => ({ id: item.id || uid(), name: item.name.trim(), duration: Math.round(Number(item.duration)), bankId: item.bankId || null })) }))
   };
@@ -146,7 +146,7 @@ function setView(name) {
 }
 
 function renderAlertSettings() { els.alertModeInputs.forEach(input => { input.checked = input.value === data.preferences.alertMode; }); els.voiceSettingsPanel.hidden = data.preferences.alertMode !== 'voice'; }
-function renderAll() { renderPlanSelect(); renderPlans(); renderBank(); resetTimer(false); renderAlertSettings(); const vibrationSupported = 'vibrate' in navigator; els.vibrationToggle.checked = vibrationSupported && data.preferences.vibration; els.vibrationToggle.disabled = !vibrationSupported; if (!vibrationSupported) els.vibrationHelp.textContent = 'Not supported by Safari on iPhone or iPad.'; els.warningToggle.checked = data.preferences.tenSecondWarning; els.appVersion.textContent = APP_VERSION; renderVoices(); }
+function renderAll() { renderPlanSelect(); renderPlans(); renderBank(); resetTimer(false); renderAlertSettings(); els.alertVolume.value = Math.round(data.preferences.alertVolume * 100); els.alertVolumeValue.textContent = `${els.alertVolume.value}%`; const vibrationSupported = 'vibrate' in navigator; els.vibrationToggle.checked = vibrationSupported && data.preferences.vibration; els.vibrationToggle.disabled = !vibrationSupported; if (!vibrationSupported) els.vibrationHelp.textContent = 'Not supported by Safari on iPhone or iPad.'; els.warningToggle.checked = data.preferences.tenSecondWarning; els.appVersion.textContent = APP_VERSION; renderVoices(); }
 
 function renderPlanSelect() {
   els.timerPlanSelect.innerHTML = data.plans.length ? data.plans.map(plan => `<option value="${escapeHtml(plan.id)}">${escapeHtml(plan.name)}</option>`).join('') : '<option value="">No plans yet</option>';
@@ -235,7 +235,7 @@ function configureAudioMixing() {
   }
 }
 function unlockAudio() { configureAudioMixing(); if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') audioContext.resume(); }
-function playTone(frequency, delay = 0, duration = .18) { unlockAudio(); const osc = audioContext.createOscillator(); const gain = audioContext.createGain(); const start = audioContext.currentTime + delay; osc.frequency.value = frequency; gain.gain.setValueAtTime(.12, start); gain.gain.exponentialRampToValueAtTime(.001, start + duration); osc.connect(gain).connect(audioContext.destination); osc.start(start); osc.stop(start + duration); }
+function playTone(frequency, delay = 0, duration = .18) { unlockAudio(); const osc = audioContext.createOscillator(); const gain = audioContext.createGain(); const start = audioContext.currentTime + delay; osc.frequency.value = frequency; gain.gain.setValueAtTime(Math.max(.0001, .12 * data.preferences.alertVolume), start); gain.gain.exponentialRampToValueAtTime(.0001, start + duration); osc.connect(gain).connect(audioContext.destination); osc.start(start); osc.stop(start + duration); }
 function createBeepUrl(segments, totalDuration) {
   const sampleRate = 22050; const sampleCount = Math.ceil(sampleRate * totalDuration); const buffer = new ArrayBuffer(44 + sampleCount * 2); const view = new DataView(buffer);
   const writeText = (offset, value) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
@@ -246,13 +246,13 @@ function createBeepUrl(segments, totalDuration) {
 function ensureBeepPlayers() {
   if (beepPlayers) return beepPlayers;
   beepPlayers = {
-    interval: new Audio(createBeepUrl([{ frequency: 620, start: 0, duration: .32 }], .36)),
+    interval: new Audio(createBeepUrl([{ frequency: 560, start: 0, duration: .14 }, { frequency: 560, start: .22, duration: .14 }, { frequency: 700, start: .44, duration: .2 }], .68)),
     warning: new Audio(createBeepUrl([{ frequency: 980, start: 0, duration: .12 }, { frequency: 980, start: .2, duration: .12 }, { frequency: 1220, start: .4, duration: .18 }], .62))
   };
   Object.values(beepPlayers).forEach(player => { player.preload = 'auto'; player.setAttribute('playsinline', ''); });
   return beepPlayers;
 }
-function playBeep(kind) { configureAudioMixing(); const player = ensureBeepPlayers()[kind]; player.currentTime = 0; const playback = player.play(); if (playback) playback.catch(() => { if (kind === 'warning') { playTone(980); playTone(980, .2); playTone(1220, .4); } else playTone(620, 0, .32); }); }
+function playBeep(kind) { configureAudioMixing(); const player = ensureBeepPlayers()[kind]; player.volume = data.preferences.alertVolume; player.currentTime = 0; const playback = player.play(); if (playback) playback.catch(() => { if (kind === 'warning') { playTone(980); playTone(980, .2); playTone(1220, .4); } else { playTone(560); playTone(560, .22); playTone(700, .44, .2); } }); }
 function cue() {
   if (data.preferences.vibration && navigator.vibrate) navigator.vibrate([160, 70, 160]);
 }
@@ -270,7 +270,7 @@ function speakInterval(interval) {
   clearTimeout(speechRetryTimer);
   const speak = () => {
     activeUtterance = new SpeechSynthesisUtterance(interval.name);
-    activeUtterance.volume = 1; activeUtterance.rate = .95; activeUtterance.pitch = 1;
+    activeUtterance.volume = data.preferences.alertVolume; activeUtterance.rate = .95; activeUtterance.pitch = 1;
     const selected = speechSynthesis.getVoices().find(voice => voice.voiceURI === data.preferences.voiceURI); if (selected) { activeUtterance.voice = selected; activeUtterance.lang = selected.lang; }
     activeUtterance.onend = activeUtterance.onerror = () => { activeUtterance = null; };
     if (speechSynthesis.paused) speechSynthesis.resume(); speechSynthesis.speak(activeUtterance);
@@ -318,6 +318,7 @@ els.timerPlanSelect.addEventListener('change', () => { timer.planId = els.timerP
 els.startPauseBtn.addEventListener('click', startPause); els.skipBtn.addEventListener('click', skip); els.previousBtn.addEventListener('click', previous); els.resetBtn.addEventListener('click', () => resetTimer());
 els.timerQueue.addEventListener('click', event => { const button = event.target.closest('.queue-jump'); if (button) jumpToInterval(Number(button.dataset.index)); });
 els.alertModeInputs.forEach(input => input.addEventListener('change', () => { if (!input.checked) return; data.preferences.alertMode = input.value; saveData(); renderAlertSettings(); if (input.value === 'beep') { if ('speechSynthesis' in window) speechSynthesis.cancel(); playBeep('interval'); } else speakInterval(currentInterval()); }));
+els.alertVolume.addEventListener('input', () => { data.preferences.alertVolume = Number(els.alertVolume.value) / 100; els.alertVolumeValue.textContent = `${els.alertVolume.value}%`; if (beepPlayers) Object.values(beepPlayers).forEach(player => { player.volume = data.preferences.alertVolume; }); saveData(); });
 els.vibrationToggle.addEventListener('change', () => { data.preferences.vibration = els.vibrationToggle.checked; saveData(); });
 els.warningToggle.addEventListener('change', () => { data.preferences.tenSecondWarning = els.warningToggle.checked; saveData(); });
 els.voiceSelect.addEventListener('change', () => { data.preferences.voiceURI = els.voiceSelect.value; saveData(); if (data.preferences.alertMode === 'voice') speakInterval(currentInterval()); });
@@ -338,7 +339,7 @@ els.installBtn.addEventListener('click', async () => { if (!deferredInstall) ret
 window.addEventListener('appinstalled', () => { els.installBtn.hidden = true; toast('App installed'); });
 if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', renderVoices);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; renderVoices(); setTimeout(renderVoices, 300); if (timer.running) { timer.remainingMs = Math.max(0, timer.endAt - performance.now()); if (timer.remainingMs <= 0) advanceInterval(); requestWakeLock(); } });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=18').catch(error => console.warn('Service worker registration failed', error)));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=19').catch(error => console.warn('Service worker registration failed', error)));
 
 setView(['timer','plans','bank','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'timer');
 renderAll();
