@@ -2,6 +2,7 @@
 
 const STORAGE_KEY = 'interval-trainer-data-v1';
 const DATA_VERSION = 1;
+const APP_VERSION = '1.1.0';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -80,7 +81,7 @@ const els = {
   planDialogTitle: $('#planDialogTitle'), planId: $('#planId'), planName: $('#planName'), planRestDuration: $('#planRestDuration'), planRepeats: $('#planRepeats'), intervalEditor: $('#intervalEditor'),
   exerciseDialog: $('#exerciseDialog'), exerciseForm: $('#exerciseForm'), exerciseDialogTitle: $('#exerciseDialogTitle'),
   exerciseId: $('#exerciseId'), exerciseName: $('#exerciseName'), exerciseType: $('#exerciseType'), exerciseDuration: $('#exerciseDuration'),
-  importFile: $('#importFile'), importDialog: $('#importDialog'), importSummary: $('#importSummary'), toast: $('#toast'), installBtn: $('#installBtn')
+  importFile: $('#importFile'), importDialog: $('#importDialog'), importSummary: $('#importSummary'), toast: $('#toast'), installBtn: $('#installBtn'), appVersion: $('#appVersion')
 };
 
 function loadData() {
@@ -143,7 +144,7 @@ function setView(name) {
   history.replaceState(null, '', `#${name}`);
 }
 
-function renderAll() { renderPlanSelect(); renderPlans(); renderBank(); resetTimer(false); els.soundToggle.checked = data.preferences.sound; els.vibrationToggle.checked = data.preferences.vibration; els.speechToggle.checked = data.preferences.speech; els.warningToggle.checked = data.preferences.tenSecondWarning; renderVoices(); }
+function renderAll() { renderPlanSelect(); renderPlans(); renderBank(); resetTimer(false); els.soundToggle.checked = data.preferences.sound; els.vibrationToggle.checked = data.preferences.vibration; els.speechToggle.checked = data.preferences.speech; els.warningToggle.checked = data.preferences.tenSecondWarning; els.appVersion.textContent = APP_VERSION; renderVoices(); }
 
 function renderPlanSelect() {
   els.timerPlanSelect.innerHTML = data.plans.length ? data.plans.map(plan => `<option value="${escapeHtml(plan.id)}">${escapeHtml(plan.name)}</option>`).join('') : '<option value="">No plans yet</option>';
@@ -318,7 +319,7 @@ els.installBtn.addEventListener('click', async () => { if (!deferredInstall) ret
 window.addEventListener('appinstalled', () => { els.installBtn.hidden = true; toast('App installed'); });
 if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', renderVoices);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; renderVoices(); setTimeout(renderVoices, 300); if (timer.running) { timer.remainingMs = Math.max(0, timer.endAt - performance.now()); if (timer.remainingMs <= 0) advanceInterval(); requestWakeLock(); } });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=15').catch(error => console.warn('Service worker registration failed', error)));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=16').catch(error => console.warn('Service worker registration failed', error)));
 
 setView(['timer','plans','bank','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'timer');
 renderAll();

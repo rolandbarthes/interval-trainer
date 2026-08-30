@@ -78,8 +78,8 @@
           <p>Choose how the timer tells you that the next interval has started.</p>
           <label class="setting-row"><span><strong>Sound cues</strong><small>Play a short tone between intervals.</small></span><input id="soundToggle" type="checkbox"></label>
           <label class="setting-row"><span><strong>Vibration</strong><small>Vibrate on supported mobile devices.</small></span><input id="vibrationToggle" type="checkbox"></label>
-          <label class="setting-row"><span><strong>Speak intervals</strong><small>Announce each exercise and rest period.</small></span><input id="speechToggle" type="checkbox"></label>
-          <label class="setting-row"><span><strong>10-second warning</strong><small>Speak when an interval has 10 seconds remaining.</small></span><input id="warningToggle" type="checkbox"></label>
+          <label class="setting-row"><span><strong>Speak intervals</strong><small>Announce each exercise and rest period. On iPhone and iPad, speech may pause music from other apps.</small></span><input id="speechToggle" type="checkbox"></label>
+          <label class="setting-row"><span><strong>10-second warning</strong><small>Speak when an interval has 10 seconds remaining. Requires spoken intervals.</small></span><input id="warningToggle" type="checkbox"></label>
         </article>
         <article class="panel settings-panel">
           <h2>Announcement voice</h2>
@@ -91,6 +91,7 @@
         <article class="panel"><h2>Export</h2><p>Download all plans, exercises, and preferences as readable JSON.</p><button id="exportBtn" class="button primary">Export JSON</button></article>
         <article class="panel"><h2>Import</h2><p>Replace or merge your current data with an Interval Trainer JSON file.</p><input id="importFile" type="file" accept="application/json,.json" hidden><button id="chooseImportBtn" class="button secondary">Choose JSON file</button></article>
         <article class="panel privacy"><h2>Private by design</h2><p>Everything stays in this browser's local storage. No account, analytics, or server database.</p><button id="restoreDefaultsBtn" class="button danger ghost">Restore sample data</button></article>
+        <article class="panel"><h2>About</h2><p>Interval Trainer version <strong id="appVersion">—</strong></p></article>
       </div>
     </section>
   </main>
@@ -128,6 +129,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=15" defer></script>
+  <script src="app.js?v=16" defer></script>
 </body>
 </html>
