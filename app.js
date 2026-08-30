@@ -2,7 +2,7 @@
 
 const STORAGE_KEY = 'interval-trainer-data-v1';
 const DATA_VERSION = 1;
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -65,6 +65,7 @@ let wakeLock = null;
 let deferredInstall = null;
 let pendingImport = null;
 let audioContext = null;
+let beepPlayers = null;
 let activeUtterance = null;
 let speechRetryTimer = null;
 let queueRenderKey = '';
@@ -76,7 +77,7 @@ const els = {
   totalRemaining: $('#totalRemaining'), overallProgress: $('#overallProgress'), timerStage: $('#timerStage'), timerStatus: $('#timerStatus'),
   timerHeading: $('#timerHeading'), timeDisplay: $('#timeDisplay'), nextInterval: $('#nextInterval'), previousBtn: $('#previousBtn'),
   startPauseBtn: $('#startPauseBtn'), skipBtn: $('#skipBtn'), resetBtn: $('#resetBtn'), alertModeInputs: $$('input[name="alertMode"]'),
-  vibrationToggle: $('#vibrationToggle'), warningToggle: $('#warningToggle'), voiceSettingsPanel: $('#voiceSettingsPanel'), voiceSelect: $('#voiceSelect'), testVoiceBtn: $('#testVoiceBtn'), planRestTime: $('#planRestTime'), timerQueue: $('#timerQueue'), queuePlanName: $('#queuePlanName'), plansGrid: $('#plansGrid'),
+  vibrationToggle: $('#vibrationToggle'), vibrationHelp: $('#vibrationHelp'), warningToggle: $('#warningToggle'), voiceSettingsPanel: $('#voiceSettingsPanel'), voiceSelect: $('#voiceSelect'), testVoiceBtn: $('#testVoiceBtn'), planRestTime: $('#planRestTime'), timerQueue: $('#timerQueue'), queuePlanName: $('#queuePlanName'), plansGrid: $('#plansGrid'),
   bankGrid: $('#bankGrid'), bankSearch: $('#bankSearch'), bankFilter: $('#bankFilter'), planDialog: $('#planDialog'), planForm: $('#planForm'),
   planDialogTitle: $('#planDialogTitle'), planId: $('#planId'), planName: $('#planName'), planRestDuration: $('#planRestDuration'), planRepeats: $('#planRepeats'), intervalEditor: $('#intervalEditor'),
   exerciseDialog: $('#exerciseDialog'), exerciseForm: $('#exerciseForm'), exerciseDialogTitle: $('#exerciseDialogTitle'),
@@ -145,7 +146,7 @@ function setView(name) {
 }
 
 function renderAlertSettings() { els.alertModeInputs.forEach(input => { input.checked = input.value === data.preferences.alertMode; }); els.voiceSettingsPanel.hidden = data.preferences.alertMode !== 'voice'; }
-function renderAll() { renderPlanSelect(); renderPlans(); renderBank(); resetTimer(false); renderAlertSettings(); els.vibrationToggle.checked = data.preferences.vibration; els.warningToggle.checked = data.preferences.tenSecondWarning; els.appVersion.textContent = APP_VERSION; renderVoices(); }
+function renderAll() { renderPlanSelect(); renderPlans(); renderBank(); resetTimer(false); renderAlertSettings(); const vibrationSupported = 'vibrate' in navigator; els.vibrationToggle.checked = vibrationSupported && data.preferences.vibration; els.vibrationToggle.disabled = !vibrationSupported; if (!vibrationSupported) els.vibrationHelp.textContent = 'Not supported by Safari on iPhone or iPad.'; els.warningToggle.checked = data.preferences.tenSecondWarning; els.appVersion.textContent = APP_VERSION; renderVoices(); }
 
 function renderPlanSelect() {
   els.timerPlanSelect.innerHTML = data.plans.length ? data.plans.map(plan => `<option value="${escapeHtml(plan.id)}">${escapeHtml(plan.name)}</option>`).join('') : '<option value="">No plans yet</option>';
@@ -207,7 +208,7 @@ function startPause() {
   if (timer.finished) resetTimer();
   if (timer.running) { timer.remainingMs = Math.max(0, timer.endAt - performance.now()); stopTicking(); releaseWakeLock(); renderTimer(); return; }
   if (!currentInterval()) return;
-  unlockAudio(); timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); announceInterval(currentInterval()); tick(); renderTimer();
+  timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); announceInterval(currentInterval()); tick(); renderTimer();
 }
 
 function tick() {
@@ -226,7 +227,7 @@ function advanceInterval() {
 }
 function skip() { if (!currentPlan()) return; const wasRunning = timer.running; const sequence = workoutSequence(); stopTicking(); if (timer.index < sequence.length - 1) { timer.index++; timer.warned10 = false; timer.remainingMs = currentInterval().duration * 1000; timer.finished = false; announceInterval(currentInterval()); } else { timer.finished = true; timer.remainingMs = 0; } if (wasRunning && !timer.finished) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
 function previous() { if (!currentPlan()) return; const wasRunning = timer.running; stopTicking(); if (timer.remainingMs < currentInterval().duration * 700) timer.remainingMs = currentInterval().duration * 1000; else if (timer.index > 0) { timer.index--; timer.remainingMs = currentInterval().duration * 1000; } timer.warned10 = false; timer.finished = false; if (wasRunning) { timer.running = true; timer.endAt = performance.now() + timer.remainingMs; tick(); } renderTimer(); }
-function jumpToInterval(index) { const sequence = workoutSequence(); if (!Number.isInteger(index) || index < 0 || index >= sequence.length) return; stopTicking(); timer.index = index; timer.remainingMs = sequence[index].duration * 1000; timer.warned10 = false; timer.finished = false; unlockAudio(); timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); announceInterval(sequence[index]); tick(); }
+function jumpToInterval(index) { const sequence = workoutSequence(); if (!Number.isInteger(index) || index < 0 || index >= sequence.length) return; stopTicking(); timer.index = index; timer.remainingMs = sequence[index].duration * 1000; timer.warned10 = false; timer.finished = false; timer.running = true; timer.endAt = performance.now() + timer.remainingMs; requestWakeLock(); announceInterval(sequence[index]); tick(); }
 
 function configureAudioMixing() {
   if ('audioSession' in navigator) {
@@ -235,12 +236,28 @@ function configureAudioMixing() {
 }
 function unlockAudio() { configureAudioMixing(); if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') audioContext.resume(); }
 function playTone(frequency, delay = 0, duration = .18) { unlockAudio(); const osc = audioContext.createOscillator(); const gain = audioContext.createGain(); const start = audioContext.currentTime + delay; osc.frequency.value = frequency; gain.gain.setValueAtTime(.12, start); gain.gain.exponentialRampToValueAtTime(.001, start + duration); osc.connect(gain).connect(audioContext.destination); osc.start(start); osc.stop(start + duration); }
+function createBeepUrl(segments, totalDuration) {
+  const sampleRate = 22050; const sampleCount = Math.ceil(sampleRate * totalDuration); const buffer = new ArrayBuffer(44 + sampleCount * 2); const view = new DataView(buffer);
+  const writeText = (offset, value) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)));
+  writeText(0, 'RIFF'); view.setUint32(4, 36 + sampleCount * 2, true); writeText(8, 'WAVE'); writeText(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); writeText(36, 'data'); view.setUint32(40, sampleCount * 2, true);
+  for (let index = 0; index < sampleCount; index += 1) { const time = index / sampleRate; const segment = segments.find(item => time >= item.start && time < item.start + item.duration); let sample = 0; if (segment) { const localTime = time - segment.start; const envelope = Math.min(1, localTime / .01, (segment.duration - localTime) / .035); sample = Math.sin(2 * Math.PI * segment.frequency * localTime) * Math.max(0, envelope) * .38; } view.setInt16(44 + index * 2, sample * 32767, true); }
+  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
+}
+function ensureBeepPlayers() {
+  if (beepPlayers) return beepPlayers;
+  beepPlayers = {
+    interval: new Audio(createBeepUrl([{ frequency: 620, start: 0, duration: .32 }], .36)),
+    warning: new Audio(createBeepUrl([{ frequency: 980, start: 0, duration: .12 }, { frequency: 980, start: .2, duration: .12 }, { frequency: 1220, start: .4, duration: .18 }], .62))
+  };
+  Object.values(beepPlayers).forEach(player => { player.preload = 'auto'; player.setAttribute('playsinline', ''); });
+  return beepPlayers;
+}
+function playBeep(kind) { configureAudioMixing(); const player = ensureBeepPlayers()[kind]; player.currentTime = 0; const playback = player.play(); if (playback) playback.catch(() => { if (kind === 'warning') { playTone(980); playTone(980, .2); playTone(1220, .4); } else playTone(620, 0, .32); }); }
 function cue() {
-  if (data.preferences.alertMode === 'beep') playTone(timer.index === workoutSequence().length - 1 ? 880 : 660, 0, .28);
   if (data.preferences.vibration && navigator.vibrate) navigator.vibrate([160, 70, 160]);
 }
-function announceInterval(interval) { if (data.preferences.alertMode === 'voice') speakInterval(interval); }
-function playWarning() { if (data.preferences.alertMode === 'voice') speakInterval({ name: '10 seconds remaining' }); else { playTone(880); playTone(880, .2); playTone(1100, .4); } }
+function announceInterval(interval) { if (data.preferences.alertMode === 'voice') speakInterval(interval); else playBeep('interval'); }
+function playWarning() { if (data.preferences.alertMode === 'voice') speakInterval({ name: '10 seconds remaining' }); else playBeep('warning'); }
 function renderVoices() {
   if (!('speechSynthesis' in window)) { const voiceInput = els.alertModeInputs.find(input => input.value === 'voice'); if (voiceInput) voiceInput.disabled = true; els.voiceSelect.innerHTML = '<option>Not supported</option>'; return; }
   const voices = speechSynthesis.getVoices();
@@ -300,7 +317,7 @@ els.tabs.forEach(tab => tab.addEventListener('click', () => setView(tab.dataset.
 els.timerPlanSelect.addEventListener('change', () => { timer.planId = els.timerPlanSelect.value; data.preferences.selectedPlanId = timer.planId; saveData(); resetTimer(); });
 els.startPauseBtn.addEventListener('click', startPause); els.skipBtn.addEventListener('click', skip); els.previousBtn.addEventListener('click', previous); els.resetBtn.addEventListener('click', () => resetTimer());
 els.timerQueue.addEventListener('click', event => { const button = event.target.closest('.queue-jump'); if (button) jumpToInterval(Number(button.dataset.index)); });
-els.alertModeInputs.forEach(input => input.addEventListener('change', () => { if (!input.checked) return; data.preferences.alertMode = input.value; saveData(); renderAlertSettings(); if (input.value === 'beep') { if ('speechSynthesis' in window) speechSynthesis.cancel(); playTone(660); } else speakInterval(currentInterval()); }));
+els.alertModeInputs.forEach(input => input.addEventListener('change', () => { if (!input.checked) return; data.preferences.alertMode = input.value; saveData(); renderAlertSettings(); if (input.value === 'beep') { if ('speechSynthesis' in window) speechSynthesis.cancel(); playBeep('interval'); } else speakInterval(currentInterval()); }));
 els.vibrationToggle.addEventListener('change', () => { data.preferences.vibration = els.vibrationToggle.checked; saveData(); });
 els.warningToggle.addEventListener('change', () => { data.preferences.tenSecondWarning = els.warningToggle.checked; saveData(); });
 els.voiceSelect.addEventListener('change', () => { data.preferences.voiceURI = els.voiceSelect.value; saveData(); if (data.preferences.alertMode === 'voice') speakInterval(currentInterval()); });
@@ -321,7 +338,7 @@ els.installBtn.addEventListener('click', async () => { if (!deferredInstall) ret
 window.addEventListener('appinstalled', () => { els.installBtn.hidden = true; toast('App installed'); });
 if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', renderVoices);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') return; renderVoices(); setTimeout(renderVoices, 300); if (timer.running) { timer.remainingMs = Math.max(0, timer.endAt - performance.now()); if (timer.remainingMs <= 0) advanceInterval(); requestWakeLock(); } });
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=17').catch(error => console.warn('Service worker registration failed', error)));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('service-worker.js?v=18').catch(error => console.warn('Service worker registration failed', error)));
 
 setView(['timer','plans','bank','settings'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'timer');
 renderAll();
